@@ -2,7 +2,9 @@ package SteamFriendData
 
 import (
 	"encoding/json"
+	"fmt"
 	"sync"
+	"time"
 )
 
 type Session struct {
@@ -43,16 +45,26 @@ func (s *Session) getUserSlice() []*SteamUser {
 
 func (s *Session) fillUserInfo(users []*SteamUser) error {
 	var (
-		chunks [][]*SteamUser
-		wg     sync.WaitGroup
+		usersToFill []*SteamUser
+		chunks      [][]*SteamUser
+		wg          sync.WaitGroup
 	)
 	errChan := make(chan error)
-
+	for _, user := range users {
+		if u, ok := s.profiles[user.Profile.SteamId]; !ok || u.Profile.PersonaName == "" {
+			if profile, ok := s.steamApi.getProfileCache(user.Profile.SteamId); ok {
+				s.updateProfile(profile)
+				continue
+			}
+			usersToFill = append(usersToFill, user)
+		}
+	}
 	n := 100
-	for i := 0; i < len(users); i += n {
-		chunk := users[i:min(i+n, len(users))]
+	for i := 0; i < len(usersToFill); i += n {
+		chunk := users[i:min(i+n, len(usersToFill))]
 		chunks = append(chunks, chunk)
 	}
+	fmt.Println(len(chunks))
 	for _, chunk := range chunks {
 		wg.Add(1)
 		go func(chunk []*SteamUser) {
@@ -73,6 +85,7 @@ func (s *Session) fillUserInfo(users []*SteamUser) error {
 				return
 			}
 			for _, info := range userInfo.Response.Players {
+				s.steamApi.profileCacheChan <- info
 				s.updateProfile(info)
 			}
 		}(chunk)
@@ -132,11 +145,28 @@ func (s *Session) multiGetFriends() {
 	wg.Wait()
 }
 
+func (s *Session) GetProfileData() ([]*SteamProfile, error) {
+	t := time.Now()
+	err := s.fillUserInfo(s.getUserSlice())
+	fmt.Println("fui", time.Now().Sub(t))
+	if err != nil {
+		return nil, err
+	}
+	var profileData []*SteamProfile
+	for _, user := range s.profiles {
+		profileData = append(profileData, user.Profile)
+	}
+	return profileData, nil
+}
+
 func (s *Session) GetFriendProfiles(id string) ([]*SteamProfile, error) {
 	id, err := s.steamApi.validateId(id)
 	if err != nil {
 		return nil, err
 	}
+	t := time.Now()
+	err = s.fillUserInfo(s.getUserSlice())
+	fmt.Println("fui", time.Now().Sub(t))
 	if _, ok := s.profiles[id]; !ok {
 		return nil, ErrProfileNotFound
 	}
@@ -149,10 +179,10 @@ func (s *Session) GetFriendProfiles(id string) ([]*SteamProfile, error) {
 	return friends, nil
 }
 
-func (s *Session) GenerateFriendData(rootId string, depth int) (map[string]*SteamUser, error) {
+func (s *Session) GenerateFriendData(rootId string, depth int) (map[string]*SteamUser, string, error) {
 	rootId, err := s.steamApi.validateId(rootId)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	rootUser := SteamUser{
 		Profile: &SteamProfile{
@@ -162,15 +192,12 @@ func (s *Session) GenerateFriendData(rootId string, depth int) (map[string]*Stea
 	s.addToProfile(&rootUser)
 	err = s.getFriends(&rootUser)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
+	t := time.Now()
 	s.multiGetFriends()
-
-	err = s.fillUserInfo(s.getUserSlice())
-	if err != nil {
-		return nil, err
-	}
-	return s.profiles, nil
+	fmt.Println("mgf", time.Now().Sub(t))
+	return s.profiles, rootId, nil
 }
 
 func (s *Session) Clear() {

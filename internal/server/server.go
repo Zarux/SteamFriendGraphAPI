@@ -22,9 +22,10 @@ const (
 )
 
 type responseMessage struct {
-	Status messageStatus `json:"status"`
-	Data   string        `json:"data"`
-	Err    string        `json:"err"`
+	Status   messageStatus `json:"status"`
+	Endpoint string        `json:"endpoint"`
+	Data     string        `json:"data"`
+	Err      string        `json:"err"`
 }
 
 type requestMessage struct {
@@ -36,7 +37,7 @@ func New(port string) *Server {
 	apiKey := os.Getenv("STEAM_KEY")
 	return &Server{
 		port:     port,
-		steamApi: SteamFriendData.New(apiKey, 15*time.Minute),
+		steamApi: SteamFriendData.New(apiKey, 60*time.Minute),
 	}
 }
 
@@ -80,6 +81,7 @@ func (s *Server) handshake(w http.ResponseWriter, r *http.Request) {
 				break
 			}
 		}
+		fmt.Println("calls", s.steamApi.CallCounter())
 	}
 }
 

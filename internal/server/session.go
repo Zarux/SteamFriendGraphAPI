@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/gorilla/websocket"
 	"sfgapi/internal/pkg/SteamFriendData"
 	"sfgapi/internal/pkg/SteamFriendGraph"
@@ -14,11 +15,13 @@ type socketSession struct {
 
 func (ss *socketSession) generateGraphDataJson(id string) ([]byte, error) {
 	ss.steamApiSession.Clear()
-	profiles, err := ss.steamApiSession.GenerateFriendData(id, 1)
+	profiles, rootId, err := ss.steamApiSession.GenerateFriendData(id, 1)
+	fmt.Println("Got profiles")
 	if err != nil {
 		return nil, err
 	}
-	graph := SteamFriendGraph.New(profiles)
+	graph := SteamFriendGraph.New(profiles, rootId)
+	fmt.Println("Got graph")
 	data, err := json.Marshal(graph)
 	if err != nil {
 		return nil, err
@@ -38,16 +41,42 @@ func (ss *socketSession) generateFriendProfilesJson(id string) ([]byte, error) {
 	return data, nil
 }
 
+func (ss *socketSession) generateLabelsJson() ([]byte, error) {
+	profileData, err := ss.steamApiSession.GetProfileData()
+	if err != nil {
+		return nil, err
+	}
+	labels := SteamFriendGraph.GenerateLabels(profileData)
+	data, err := json.Marshal(labels)
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
 func (ss *socketSession) handleMessage(msg *requestMessage) *responseMessage {
 	var (
 		data []byte
 		err  error
 	)
+	fmt.Println("Handling", msg.Endpoint)
 	switch msg.Endpoint {
+	case "ping":
+		data = []byte("pong")
 	case "generateGraphData":
 		data, err = ss.generateGraphDataJson(msg.Id)
 		if err != nil {
 			return &responseMessage{
+				Endpoint: msg.Endpoint,
+				Status: statusError,
+				Err:    err.Error(),
+			}
+		}
+	case "generateLabels":
+		data, err = ss.generateLabelsJson()
+		if err != nil {
+			return &responseMessage{
+				Endpoint: msg.Endpoint,
 				Status: statusError,
 				Err:    err.Error(),
 			}
@@ -56,6 +85,7 @@ func (ss *socketSession) handleMessage(msg *requestMessage) *responseMessage {
 		data, err = ss.generateFriendProfilesJson(msg.Id)
 		if err != nil {
 			return &responseMessage{
+				Endpoint: msg.Endpoint,
 				Status: statusError,
 				Err:    err.Error(),
 			}
@@ -63,8 +93,9 @@ func (ss *socketSession) handleMessage(msg *requestMessage) *responseMessage {
 	default:
 		return notFoundResponse
 	}
-
+	fmt.Println("Handling", msg.Endpoint, "DONE")
 	return &responseMessage{
+		Endpoint: msg.Endpoint,
 		Status: statusSuccess,
 		Data:   string(data),
 	}

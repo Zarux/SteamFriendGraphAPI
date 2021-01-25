@@ -55,11 +55,14 @@ type UserInfo struct {
 }
 
 type SteamApi struct {
-	key          string
-	counter      uint64
-	cache        map[string][]byte
-	cacheInvChan chan string
-	mu           sync.Mutex
+	key              string
+	counter          uint64
+	urlCache         map[string][]byte
+	urlCacheInvChan  chan string
+	urlCacheMu       sync.Mutex
+	profileCache     map[string]SteamProfile
+	profileCacheChan chan SteamProfile
+	profileCacheMu   sync.Mutex
 }
 
 type SteamProfile struct {
@@ -69,23 +72,23 @@ type SteamProfile struct {
 	PersonaName              string `json:"personaname"`
 	ProfileUrl               string `json:"profileurl"`
 	Avatar                   string `json:"avatar"`
-	AvatarMedium             string `json:"avatarmedium"`
-	AvatarFull               string `json:"avatarfull"`
-	AvatarHash               string `json:"avatarhash"`
-	LastLogoff               int    `json:"lastlogoff,omitempty"`
-	PersonaState             int    `json:"personastate"`
-	PrimaryClanId            string `json:"primaryclanid,omitempty"`
-	TimeCreated              int    `json:"timecreated,omitempty"`
-	PersonaStateFlags        int    `json:"personastateflags"`
-	CommentPermission        int    `json:"commentpermission,omitempty"`
-	RealName                 string `json:"realname,omitempty"`
-	LocCountryCode           string `json:"loccountrycode,omitempty"`
-	GameExtraInfo            string `json:"gameextrainfo,omitempty"`
-	GameId                   string `json:"gameid,omitempty"`
-	LocStateCode             string `json:"locstatecode,omitempty"`
-	LocCityId                int    `json:"loccityid,omitempty"`
-	GameServerIp             string `json:"gameserverip,omitempty"`
-	GameServerSteamId        string `json:"gameserversteamid,omitempty"`
+	//AvatarMedium             string `json:"avatarmedium"`
+	//AvatarFull               string `json:"avatarfull"`
+	//AvatarHash               string `json:"avatarhash"`
+	//LastLogoff               int    `json:"lastlogoff,omitempty"`
+	//PersonaState             int    `json:"personastate"`
+	//PrimaryClanId            string `json:"primaryclanid,omitempty"`
+	TimeCreated int `json:"timecreated,omitempty"`
+	//PersonaStateFlags        int    `json:"personastateflags"`
+	//CommentPermission        int    `json:"commentpermission,omitempty"`
+	RealName       string `json:"realname,omitempty"`
+	LocCountryCode string `json:"loccountrycode,omitempty"`
+	//GameExtraInfo            string `json:"gameextrainfo,omitempty"`
+	//GameId                   string `json:"gameid,omitempty"`
+	//LocStateCode             string `json:"locstatecode,omitempty"`
+	//LocCityId                int    `json:"loccityid,omitempty"`
+	//GameServerIp             string `json:"gameserverip,omitempty"`
+	//GameServerSteamId        string `json:"gameserversteamid,omitempty"`
 }
 
 type SteamUser struct {
@@ -95,17 +98,30 @@ type SteamUser struct {
 
 func New(key string, cacheDuration time.Duration) *SteamApi {
 	api := &SteamApi{
-		key:          key,
-		cache:        make(map[string][]byte),
-		cacheInvChan: make(chan string),
+		key:              key,
+		urlCache:         make(map[string][]byte),
+		urlCacheInvChan:  make(chan string),
+		profileCache:     make(map[string]SteamProfile),
+		profileCacheChan: make(chan SteamProfile),
 	}
 
 	go func(api *SteamApi) {
 		for {
 			select {
-			case key := <-api.cacheInvChan:
+			case profile := <-api.profileCacheChan:
+				api.profileCacheMu.Lock()
+				api.profileCache[profile.SteamId] = profile
+				api.profileCacheMu.Unlock()
 				time.AfterFunc(cacheDuration, func() {
-					delete(api.cache, key)
+					api.profileCacheMu.Lock()
+					delete(api.profileCache, profile.SteamId)
+					api.profileCacheMu.Unlock()
+				})
+			case key := <-api.urlCacheInvChan:
+				time.AfterFunc(cacheDuration, func() {
+					api.urlCacheMu.Lock()
+					delete(api.urlCache, key)
+					api.urlCacheMu.Unlock()
 				})
 			}
 		}
@@ -118,22 +134,29 @@ func (sa *SteamApi) CallCounter() int {
 	return int(sa.counter)
 }
 
-func (sa *SteamApi) cacheResult(key string, data []byte) {
-	sa.mu.Lock()
-	sa.cache[key] = data
-	sa.mu.Unlock()
-	sa.cacheInvChan <- key
+func (sa *SteamApi) cacheUrlResult(key string, data []byte) {
+	sa.urlCacheMu.Lock()
+	sa.urlCache[key] = data
+	sa.urlCacheMu.Unlock()
+	sa.urlCacheInvChan <- key
 }
 
-func (sa *SteamApi) getCache(key string) ([]byte, bool) {
-	sa.mu.Lock()
-	cache, ok := sa.cache[key]
-	sa.mu.Unlock()
+func (sa *SteamApi) getUrlCache(key string) ([]byte, bool) {
+	sa.urlCacheMu.Lock()
+	cache, ok := sa.urlCache[key]
+	sa.urlCacheMu.Unlock()
+	return cache, ok
+}
+
+func (sa *SteamApi) getProfileCache(key string) (SteamProfile, bool) {
+	sa.profileCacheMu.Lock()
+	cache, ok := sa.profileCache[key]
+	sa.profileCacheMu.Unlock()
 	return cache, ok
 }
 
 func (sa *SteamApi) get(url string) ([]byte, error) {
-	if cache, ok := sa.getCache(url); ok {
+	if cache, ok := sa.getUrlCache(url); ok {
 		return cache, nil
 	}
 	resp, err := http.Get(url)
@@ -147,7 +170,7 @@ func (sa *SteamApi) get(url string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	sa.cacheResult(url, body)
+	sa.cacheUrlResult(url, body)
 	return body, nil
 }
 
