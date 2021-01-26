@@ -37,7 +37,7 @@ func New(port string) *Server {
 	apiKey := os.Getenv("STEAM_KEY")
 	return &Server{
 		port:     port,
-		steamApi: SteamFriendData.New(apiKey, 60*time.Minute),
+		steamApi: SteamFriendData.New(apiKey, 3*time.Hour),
 	}
 }
 

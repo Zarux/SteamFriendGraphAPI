@@ -50,8 +50,19 @@ func (s *Session) fillUserInfo(users []*SteamUser) error {
 		wg          sync.WaitGroup
 	)
 	errChan := make(chan error)
+	go func() {
+		for {
+			select {
+			case err := <-errChan:
+				fmt.Println(err)
+				if err == nil {
+					return
+				}
+			}
+		}
+	}()
 	for _, user := range users {
-		if u, ok := s.profiles[user.Profile.SteamId]; !ok || u.Profile.PersonaName == "" {
+		if _, ok := s.profiles[user.Profile.SteamId]; !ok || user.Profile.ProfileUrl == "" {
 			if profile, ok := s.steamApi.getProfileCache(user.Profile.SteamId); ok {
 				s.updateProfile(profile)
 				continue
@@ -64,7 +75,7 @@ func (s *Session) fillUserInfo(users []*SteamUser) error {
 		chunk := users[i:min(i+n, len(usersToFill))]
 		chunks = append(chunks, chunk)
 	}
-	fmt.Println(len(chunks))
+	fmt.Println(len(chunks), len(usersToFill))
 	for _, chunk := range chunks {
 		wg.Add(1)
 		go func(chunk []*SteamUser) {
@@ -91,6 +102,7 @@ func (s *Session) fillUserInfo(users []*SteamUser) error {
 		}(chunk)
 	}
 	wg.Wait()
+	errChan <- nil
 	return nil
 }
 
@@ -159,24 +171,26 @@ func (s *Session) GetProfileData() ([]*SteamProfile, error) {
 	return profileData, nil
 }
 
-func (s *Session) GetFriendProfiles(id string) ([]*SteamProfile, error) {
+func (s *Session) GetFriendProfiles(id string) ([]*SteamProfile, *SteamProfile, error) {
 	id, err := s.steamApi.validateId(id)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	t := time.Now()
 	err = s.fillUserInfo(s.getUserSlice())
 	fmt.Println("fui", time.Now().Sub(t))
 	if _, ok := s.profiles[id]; !ok {
-		return nil, ErrProfileNotFound
+		return nil, nil, ErrProfileNotFound
 	}
 	var friends []*SteamProfile
-	for _, friend := range s.profiles[id].Friends.Friends {
-		if f, ok := s.profiles[friend.SteamId]; ok {
-			friends = append(friends, f.Profile)
+	if s.profiles[id].Friends != nil {
+		for _, friend := range s.profiles[id].Friends.Friends {
+			if f, ok := s.profiles[friend.SteamId]; ok {
+				friends = append(friends, f.Profile)
+			}
 		}
 	}
-	return friends, nil
+	return friends, s.profiles[id].Profile, nil
 }
 
 func (s *Session) GenerateFriendData(rootId string, depth int) (map[string]*SteamUser, string, error) {

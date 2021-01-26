@@ -30,11 +30,17 @@ func (ss *socketSession) generateGraphDataJson(id string) ([]byte, error) {
 }
 
 func (ss *socketSession) generateFriendProfilesJson(id string) ([]byte, error) {
-	profiles, err := ss.steamApiSession.GetFriendProfiles(id)
+	profiles, root, err := ss.steamApiSession.GetFriendProfiles(id)
 	if err != nil {
 		return nil, err
 	}
-	data, err := json.Marshal(profiles)
+	data, err := json.Marshal(struct{
+		Friends []*SteamFriendData.SteamProfile `json:"friends"`
+		Profile *SteamFriendData.SteamProfile `json:"profile"`
+	}{
+		Friends: profiles,
+		Profile: root,
+	})
 	if err != nil {
 		return nil, err
 	}

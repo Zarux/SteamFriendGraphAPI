@@ -27,7 +27,9 @@ func (sae *SAError) Error() string {
 	return sae.ErrorString
 }
 
-var ErrProfileNotFound = &SAError{ErrorString: "profile not found"}
+var (
+	ErrProfileNotFound = &SAError{ErrorString: "profile not found"}
+)
 
 type VanityResolution struct {
 	Response struct {
@@ -66,29 +68,14 @@ type SteamApi struct {
 }
 
 type SteamProfile struct {
-	SteamId                  string `json:"steamid"`
-	CommunityVisibilityState int    `json:"communityvisibilitystate"`
-	ProfileState             int    `json:"profilestate"`
-	PersonaName              string `json:"personaname"`
-	ProfileUrl               string `json:"profileurl"`
-	Avatar                   string `json:"avatar"`
-	//AvatarMedium             string `json:"avatarmedium"`
-	//AvatarFull               string `json:"avatarfull"`
-	//AvatarHash               string `json:"avatarhash"`
-	//LastLogoff               int    `json:"lastlogoff,omitempty"`
-	//PersonaState             int    `json:"personastate"`
-	//PrimaryClanId            string `json:"primaryclanid,omitempty"`
-	TimeCreated int `json:"timecreated,omitempty"`
-	//PersonaStateFlags        int    `json:"personastateflags"`
-	//CommentPermission        int    `json:"commentpermission,omitempty"`
+	SteamId        string `json:"steamid"`
+	PersonaName    string `json:"personaname"`
+	ProfileUrl     string `json:"profileurl"`
+	AvatarMedium   string `json:"avatarmedium"`
+	PersonaState   int    `json:"personastate"`
+	TimeCreated    int    `json:"timecreated,omitempty"`
 	RealName       string `json:"realname,omitempty"`
 	LocCountryCode string `json:"loccountrycode,omitempty"`
-	//GameExtraInfo            string `json:"gameextrainfo,omitempty"`
-	//GameId                   string `json:"gameid,omitempty"`
-	//LocStateCode             string `json:"locstatecode,omitempty"`
-	//LocCityId                int    `json:"loccityid,omitempty"`
-	//GameServerIp             string `json:"gameserverip,omitempty"`
-	//GameServerSteamId        string `json:"gameserversteamid,omitempty"`
 }
 
 type SteamUser struct {
