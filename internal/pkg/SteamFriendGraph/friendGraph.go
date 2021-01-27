@@ -6,9 +6,9 @@ import (
 )
 
 type Graph struct {
-	Nodes []*Node `json:"nodes"`
-	Edges []*Edge `json:"edges"`
-	RootId string `json:"rootId"`
+	Nodes  []*Node `json:"nodes"`
+	Edges  []*Edge `json:"edges"`
+	RootId string  `json:"rootId"`
 }
 
 type Node struct {
@@ -51,7 +51,7 @@ func (g *Graph) generate(friendData map[string]*SteamFriendData.SteamUser) {
 	}
 }
 
-func GenerateLabels(profiles []*SteamFriendData.SteamProfile) map[string]string{
+func GenerateLabels(profiles []*SteamFriendData.SteamProfile) map[string]string {
 	labels := make(map[string]string)
 	for _, profile := range profiles {
 		label := profile.PersonaName

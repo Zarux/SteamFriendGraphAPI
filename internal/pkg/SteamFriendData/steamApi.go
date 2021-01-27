@@ -58,7 +58,7 @@ type UserInfo struct {
 
 type SteamApi struct {
 	key              string
-	counter          uint64
+	counter          int64
 	urlCache         map[string][]byte
 	urlCacheInvChan  chan string
 	urlCacheMu       sync.Mutex
@@ -91,6 +91,16 @@ func New(key string, cacheDuration time.Duration) *SteamApi {
 		profileCache:     make(map[string]SteamProfile),
 		profileCacheChan: make(chan SteamProfile),
 	}
+
+	ticker := time.NewTicker(24 * time.Hour)
+	go func(api *SteamApi) {
+		for {
+			select {
+			case <-ticker.C:
+				atomic.CompareAndSwapInt64(&api.counter, api.counter, 0)
+			}
+		}
+	}(api)
 
 	go func(api *SteamApi) {
 		for {
@@ -152,7 +162,7 @@ func (sa *SteamApi) get(url string) ([]byte, error) {
 	}
 	defer resp.Body.Close()
 
-	atomic.AddUint64(&sa.counter, 1)
+	atomic.AddInt64(&sa.counter, 1)
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err

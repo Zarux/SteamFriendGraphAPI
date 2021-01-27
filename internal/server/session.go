@@ -34,9 +34,9 @@ func (ss *socketSession) generateFriendProfilesJson(id string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err := json.Marshal(struct{
+	data, err := json.Marshal(struct {
 		Friends []*SteamFriendData.SteamProfile `json:"friends"`
-		Profile *SteamFriendData.SteamProfile `json:"profile"`
+		Profile *SteamFriendData.SteamProfile   `json:"profile"`
 	}{
 		Friends: profiles,
 		Profile: root,
@@ -74,8 +74,8 @@ func (ss *socketSession) handleMessage(msg *requestMessage) *responseMessage {
 		if err != nil {
 			return &responseMessage{
 				Endpoint: msg.Endpoint,
-				Status: statusError,
-				Err:    err.Error(),
+				Status:   statusError,
+				Err:      err.Error(),
 			}
 		}
 	case "generateLabels":
@@ -83,8 +83,8 @@ func (ss *socketSession) handleMessage(msg *requestMessage) *responseMessage {
 		if err != nil {
 			return &responseMessage{
 				Endpoint: msg.Endpoint,
-				Status: statusError,
-				Err:    err.Error(),
+				Status:   statusError,
+				Err:      err.Error(),
 			}
 		}
 	case "getFriendProfiles":
@@ -92,8 +92,8 @@ func (ss *socketSession) handleMessage(msg *requestMessage) *responseMessage {
 		if err != nil {
 			return &responseMessage{
 				Endpoint: msg.Endpoint,
-				Status: statusError,
-				Err:    err.Error(),
+				Status:   statusError,
+				Err:      err.Error(),
 			}
 		}
 	default:
@@ -102,7 +102,7 @@ func (ss *socketSession) handleMessage(msg *requestMessage) *responseMessage {
 	fmt.Println("Handling", msg.Endpoint, "DONE")
 	return &responseMessage{
 		Endpoint: msg.Endpoint,
-		Status: statusSuccess,
-		Data:   string(data),
+		Status:   statusSuccess,
+		Data:     string(data),
 	}
 }

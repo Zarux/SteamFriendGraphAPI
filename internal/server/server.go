@@ -63,6 +63,17 @@ func (s *Server) handshake(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for {
+		if s.steamApi.CallCounter() > 90000 {
+			errMsg := responseMessage{
+				Status: statusError,
+				Err:    "calls to high",
+			}
+			if err = socket.WriteJSON(errMsg); err != nil {
+				fmt.Println(err)
+				break
+			}
+		}
+
 		incomingMessage := &requestMessage{}
 		if err := socket.ReadJSON(incomingMessage); err != nil {
 			errMsg := responseMessage{
