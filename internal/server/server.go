@@ -108,5 +108,5 @@ func (s *Server) Serve() {
 	upgrader.CheckOrigin = func(r *http.Request) bool { return true }
 	http.HandleFunc("/", s.handshake)
 	log.Info("Running on ", s.port)
-	fmt.Println(http.ListenAndServe("localhost:"+s.port, nil))
+	fmt.Println(http.ListenAndServe(":"+s.port, nil))
 }
