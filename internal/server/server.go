@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"github.com/gorilla/websocket"
+	log "github.com/sirupsen/logrus"
 	"net/http"
 	"os"
 	"sfgapi/internal/pkg/SteamFriendData"
@@ -49,10 +50,12 @@ var notFoundResponse = &responseMessage{
 }
 
 func (s *Server) handshake(w http.ResponseWriter, r *http.Request) {
+	requestLogger := log.WithFields(log.Fields{"user_ip": r.RemoteAddr})
+	log.WithField("client ip", r.RemoteAddr).Info("Handshake request")
 	socket, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Println(err)
+		requestLogger.Error(err)
 		return
 	}
 	defer socket.Close()
@@ -60,8 +63,9 @@ func (s *Server) handshake(w http.ResponseWriter, r *http.Request) {
 	session := socketSession{
 		socket:          socket,
 		steamApiSession: s.steamApi.NewSession(),
+		requestLogger:   requestLogger,
 	}
-
+	requestLogger.WithField("client_ip", r.RemoteAddr).Info("Socket session created")
 	for {
 		if s.steamApi.CallCounter() > 90000 {
 			errMsg := responseMessage{
@@ -69,7 +73,7 @@ func (s *Server) handshake(w http.ResponseWriter, r *http.Request) {
 				Err:    "calls to high",
 			}
 			if err = socket.WriteJSON(errMsg); err != nil {
-				fmt.Println(err)
+				requestLogger.Error(err)
 				break
 			}
 		}
@@ -81,24 +85,28 @@ func (s *Server) handshake(w http.ResponseWriter, r *http.Request) {
 				Err:    err.Error(),
 			}
 			if err = socket.WriteJSON(errMsg); err != nil {
-				fmt.Println(err)
+				requestLogger.Error(err)
 				break
 			}
 		}
 		response := session.handleMessage(incomingMessage)
+		if response.Status == statusError {
+			requestLogger.WithField("endpoint", incomingMessage.Endpoint).Error(response.Err)
+		}
 		if response != nil {
 			if err = socket.WriteJSON(response); err != nil {
-				fmt.Println(err)
+				requestLogger.Error(err)
 				break
 			}
 		}
-		fmt.Println("calls", s.steamApi.CallCounter())
+		requestLogger.WithField("callCounter", s.steamApi.CallCounter()).Info("Current calls")
 	}
 }
 
 func (s *Server) Serve() {
+	log.SetReportCaller(true)
 	upgrader.CheckOrigin = func(r *http.Request) bool { return true }
 	http.HandleFunc("/", s.handshake)
-	fmt.Println("Running on", s.port)
+	log.Info("Running on ", s.port)
 	fmt.Println(http.ListenAndServe("localhost:"+s.port, nil))
 }

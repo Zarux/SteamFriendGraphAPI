@@ -97,7 +97,7 @@ func New(key string, cacheDuration time.Duration) *SteamApi {
 		for {
 			select {
 			case <-ticker.C:
-				atomic.CompareAndSwapInt64(&api.counter, api.counter, 0)
+				atomic.StoreInt64(&api.counter, 0)
 			}
 		}
 	}(api)

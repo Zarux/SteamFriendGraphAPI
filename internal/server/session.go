@@ -2,8 +2,8 @@ package server
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/gorilla/websocket"
+	log "github.com/sirupsen/logrus"
 	"sfgapi/internal/pkg/SteamFriendData"
 	"sfgapi/internal/pkg/SteamFriendGraph"
 )
@@ -11,17 +11,18 @@ import (
 type socketSession struct {
 	socket          *websocket.Conn
 	steamApiSession *SteamFriendData.Session
+	requestLogger   *log.Entry
 }
 
 func (ss *socketSession) generateGraphDataJson(id string) ([]byte, error) {
 	ss.steamApiSession.Clear()
 	profiles, rootId, err := ss.steamApiSession.GenerateFriendData(id, 1)
-	fmt.Println("Got profiles")
+	ss.requestLogger.Info("Friends generated")
 	if err != nil {
 		return nil, err
 	}
 	graph := SteamFriendGraph.New(profiles, rootId)
-	fmt.Println("Got graph")
+	ss.requestLogger.Info("Graph generated")
 	data, err := json.Marshal(graph)
 	if err != nil {
 		return nil, err
@@ -31,6 +32,7 @@ func (ss *socketSession) generateGraphDataJson(id string) ([]byte, error) {
 
 func (ss *socketSession) generateFriendProfilesJson(id string) ([]byte, error) {
 	profiles, root, err := ss.steamApiSession.GetFriendProfiles(id)
+	ss.requestLogger.Info("Friend profiles got")
 	if err != nil {
 		return nil, err
 	}
@@ -49,6 +51,7 @@ func (ss *socketSession) generateFriendProfilesJson(id string) ([]byte, error) {
 
 func (ss *socketSession) generateLabelsJson() ([]byte, error) {
 	profileData, err := ss.steamApiSession.GetProfileData()
+	ss.requestLogger.Info("Profile data got")
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +68,7 @@ func (ss *socketSession) handleMessage(msg *requestMessage) *responseMessage {
 		data []byte
 		err  error
 	)
-	fmt.Println("Handling", msg.Endpoint)
+	ss.requestLogger.WithField("endpoint", msg.Endpoint).Info("Handling BEGIN")
 	switch msg.Endpoint {
 	case "ping":
 		data = []byte("pong")
@@ -99,7 +102,7 @@ func (ss *socketSession) handleMessage(msg *requestMessage) *responseMessage {
 	default:
 		return notFoundResponse
 	}
-	fmt.Println("Handling", msg.Endpoint, "DONE")
+	ss.requestLogger.WithField("endpoint", msg.Endpoint).Info("Handling COMPLETE")
 	return &responseMessage{
 		Endpoint: msg.Endpoint,
 		Status:   statusSuccess,
