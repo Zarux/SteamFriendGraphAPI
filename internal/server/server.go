@@ -50,22 +50,17 @@ var notFoundResponse = &responseMessage{
 }
 
 func (s *Server) handshake(w http.ResponseWriter, r *http.Request) {
-	requestLogger := log.WithFields(log.Fields{"user_ip": r.RemoteAddr})
-	log.WithField("client ip", r.RemoteAddr).Info("Handshake request")
+	log.Info("Handshake request")
 	socket, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		requestLogger.Error(err)
+		log.Error(err)
 		return
 	}
 	defer socket.Close()
 
-	session := socketSession{
-		socket:          socket,
-		steamApiSession: s.steamApi.NewSession(),
-		requestLogger:   requestLogger,
-	}
-	requestLogger.WithField("client_ip", r.RemoteAddr).Info("Socket session created")
+	session, requestLogger := newSocketSession(socket, s.steamApi.NewSession())
+	requestLogger.Info("Socket session created")
 	for {
 		if s.steamApi.CallCounter() > 90000 {
 			errMsg := responseMessage{
@@ -104,7 +99,6 @@ func (s *Server) handshake(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) Serve() {
-	log.SetReportCaller(true)
 	upgrader.CheckOrigin = func(r *http.Request) bool { return true }
 	http.HandleFunc("/", s.handshake)
 	log.Info("Running on ", s.port)

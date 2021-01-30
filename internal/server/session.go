@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	log "github.com/sirupsen/logrus"
 	"sfgapi/internal/pkg/SteamFriendData"
@@ -9,9 +10,23 @@ import (
 )
 
 type socketSession struct {
+	id              string
 	socket          *websocket.Conn
 	steamApiSession *SteamFriendData.Session
 	requestLogger   *log.Entry
+}
+
+func newSocketSession(socket *websocket.Conn, sas *SteamFriendData.Session) (socketSession, *log.Entry) {
+	sessId := uuid.New().String()
+	requestLogger := log.WithField("sess_id", sessId)
+	session := socketSession{
+		id:              sessId,
+		socket:          socket,
+		steamApiSession: sas,
+		requestLogger:   requestLogger,
+	}
+
+	return session, requestLogger
 }
 
 func (ss *socketSession) generateGraphDataJson(id string) ([]byte, error) {
